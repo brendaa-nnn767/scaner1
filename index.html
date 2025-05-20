@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Escáner de Códigos de Barras</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 5px 10px 0;
+    }
+    #reader {
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 10px;
+    }
+    #listado {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Escáner de Códigos de Barras (Cámara o Escáner)</h1>
+
+  <div id="reader"></div>
+<button onclick="iniciarCamara()">Activar Cámara</button>
+
+  <input id="barcodeInput" type="text" placeholder="Escanea con teclado..." autofocus />
+  <button onclick="reiniciar()">Reiniciar Contador</button>
+  <button onclick="descargarCSV()">Descargar CSV</button>
+
+  <p>Total escaneados: <span id="contador">0</span> / 1000</p>
+  
+  <input id="busqueda" type="text" placeholder="Buscar código..." oninput="buscarCodigo()" />
+  <div id="listado"></div>
+
+  <!-- Sonidos -->
+  <audio id="beep" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
+  <audio id="alerta" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
+
+  <script>
+    const barcodeInput = document.getElementById('barcodeInput');
+    const listado = document.getElementById('listado');
+    const contador = document.getElementById('contador');
+    const beep = document.getElementById('beep');
+    const alerta = document.getElementById('alerta');
+
+    let codigos = [];
+
+    barcodeInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        agregarCodigo(barcodeInput.value.trim());
+        barcodeInput.value = '';
+      }
+    });
+
+    function agregarCodigo(valor) {
+      if (!valor || codigos.length >= 1000) return;
+      const timestamp = new Date().toLocaleString();
+      codigos.push({ codigo: valor, fecha: timestamp });
+      contador.textContent = codigos.length;
+      beep.play();
+      actualizarListado();
+
+      if (codigos.length % 50 === 0) {
+        alerta.play();
+        alert(`¡Has escaneado ${codigos.length} códigos!`);
+      }
+    }
+
+    function actualizarListado(filtro = '') {
+      listado.innerHTML = '';
+      const filtrados = codigos.filter(c => c.codigo.includes(filtro));
+      filtrados.forEach(codigoObj => {
+        const div = document.createElement('div');
+        div.textContent = `${codigoObj.codigo} - ${codigoObj.fecha}`;
+        listado.appendChild(div);
+      });
+    }
+
+    function buscarCodigo() {
+      const filtro = document.getElementById('busqueda').value.trim();
+      actualizarListado(filtro);
+    }
+
+    function reiniciar() {
+      if (confirm('¿Seguro que quieres reiniciar todos los códigos?')) {
+        codigos = [];
+        contador.textContent = '0';
+        actualizarListado();
+      }
+    }
+
+    function descargarCSV() {
+      if (codigos.length === 0) {
+        alert('No hay códigos para descargar.');
+        return;
+      }
+
+      let csvContent = "data:text/csv;charset=utf-8,Código,Fecha/Hora\n";
+      codigos.forEach(item => {
+        csvContent += `${item.codigo},${item.fecha}\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "codigos_escaneados.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function iniciarCamara() {
+      const qrScanner = new Html5Qrcode("reader");
+      qrScanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: 250
+        },
+        (decodedText, decodedResult) => {
+          if (!codigos.some(c => c.codigo === decodedText)) {
+            agregarCodigo(decodedText);
+          }
+        },
+        errorMessage => {
+          // Puede ignorarse
+        }
+      ).catch(err => {
+        alert("No se pudo acceder a la cámara.");
+        console.error(err);
+      });
+    }
+
+    iniciarCamara();
+  </script>
+</body>
+</html>
